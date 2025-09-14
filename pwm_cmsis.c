@@ -54,6 +54,39 @@ void gpio_pd12_init(void)
     GPIOD->AFR[1] |=  (0x2 << ((12 - 8) * 4));          // PD12 AF2 (TIM4_CH1)
 }
 
+/*
+
+STM32’de GPIO Alternate Function (AFR) register pinin alternatif fonksiyonunu seçmek için kullanılır. 
+Bir GPIO pini, sadece giriş/çıkış değil; aynı zamanda USART, SPI, I2C, TIM, ADC trigger gibi çevresel birimlere de yönlendirilebilir. 
+İşte AFR bunun seçimini yapar.
+
+Temel Mantık
+    Her GPIO pininin AF numarası (AF0–AF15) vardır.
+    Hangi çevresel birim hangi AF numarasına denk geliyor, bu mikrodenetleyicinin datasheet veya reference manual’ındaki tabloda belirtilir.
+    AFR register’ı iki parçadan oluşur:
+        Pin 0–7 için → AFRL kullanılır.
+        Pin 8–15 için → AFRH kullanılır.
+        GPIOx_AFRL → pin 0–7 için (her pin 4 bit)
+        GPIOx_AFRH → pin 8–15 için (her pin 4 bit)
+
+GPIOx->AFR[] aslında bir dizi (array) gibi tanımlanmış iki register’dır:
+    AFR[0] = GPIOx_AFRL → Pin 0–7 için (Low)  
+    AFR[1] = GPIOx_AFRH → Pin 8–15 için (High)
+
+Yani:
+    Pin numarası 0–7 ise → AFR[0] (AFRL) kullanılır 
+    Pin numarası 8–15 ise → AFR[1] (AFRH) kullanılır
+    Her pin için 4 bit ayrılmıştır.
+
+Örnek:
+    PA2 (USART2_TX, AF7) → pin 2 → AFR[0]’ın [11:8] bitleri
+    PA9 (USART1_TX, AF7) → pin 9 → AFR[1]’in [7:4] bitleri
+
+    GPIOx->AFR[0] |= (AF_numarası << (pin * 4));
+    GPIOx->AFR[1] |= (AF_numarası << ((pin - 8) * 4));
+    
+*/
+
 void tim4_pwm_init(uint32_t freq_hz, uint32_t duty)
 {
     RCC->APB1ENR |= RCC_APB1ENR_TIM4EN;                // TIM4 clock enable
