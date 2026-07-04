@@ -25,6 +25,7 @@
 "./Modules/Src/Flash_CMSIS.o"
 "./Modules/Src/GPIO_Interrupt_CMSIS.o"
 "./Modules/Src/I2C_CMSIS.o"
+"./Modules/Src/LowPower_CMSIS.o"
 "./Modules/Src/PWM_CMSIS.o"
 "./Modules/Src/RTC_CMSIS.o"
 "./Modules/Src/SPI_CMSIS.o"

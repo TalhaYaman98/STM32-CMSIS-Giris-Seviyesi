@@ -1,0 +1,5 @@
+../Modules/Src/LowPower_CMSIS.c:6:6:LowPower_EnterSleep	1
+../Modules/Src/LowPower_CMSIS.c:49:6:LowPower_EnterStop	1
+../Modules/Src/LowPower_CMSIS.c:118:6:LowPower_EnterStandby	2
+../Modules/Src/LowPower_CMSIS.c:167:9:LowPower_WokeFromStandby	2
+../Modules/Src/LowPower_CMSIS.c:204:6:LowPower_ConfigWakeupPin	1

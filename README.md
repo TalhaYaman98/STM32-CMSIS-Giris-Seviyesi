@@ -33,7 +33,7 @@ STM32 programlamaya yeni başlayanların donanımın çalışma mantığını **
 | **Watchdog** | `Watchdog_CMSIS.c/h` | IWDG (bağımsız) ve WWDG (pencere) reset koruması | ✅ Hazır |
 | **RTC** | `RTC_CMSIS.c/h` | Gerçek zamanlı saat, alarm ve zaman damgası (HSE/8) | ✅ Hazır |
 | **Flash** | `Flash_CMSIS.c/h` | Dahili Flash okuma/yazma, sektör silme | ✅ Hazır |
-| **Low Power** | — | Sleep, Stop ve Standby güç tasarrufu modları | 🔜 Yakında |
+| **Low Power** | `LowPower_CMSIS.c/h` | Sleep, Stop ve Standby güç tasarrufu modları | ✅ Hazır |
 | **CAN** | — | Controller Area Network haberleşme protokolü | 🔜 Yakında |
 
 ## 🗂️ Proje Yapısı
@@ -56,7 +56,8 @@ STM32-CMSIS-Examples/
 ├── DMA_CMSIS.c / .h              # DMA — UART TX (DMA1 S6 CH4), ADC (DMA2 S0 CH0)
 ├── Watchdog_CMSIS.c / .h         # IWDG (LSI) ve WWDG (APB1, pencere mantığı)
 ├── RTC_CMSIS.c / .h              # RTC — saat/tarih, alarm A, timestamp (HSE/8)
-└── Flash_CMSIS.c / .h            # Flash — sektör silme, 32-bit okuma/yazma
+├── Flash_CMSIS.c / .h            # Flash — sektör silme, 32-bit okuma/yazma
+└── LowPower_CMSIS.c / .h         # Low Power — Sleep, Stop, Standby modları
 ```
 
 ### HeaderForAll.h — Modül Seçimi
@@ -77,11 +78,14 @@ Tüm modüller `HeaderForAll.h` içinden merkezi olarak yönetilir. Kullanmak is
 #define WATCHDOG_CMSIS        0
 #define RTC_CMSIS             0
 #define FLASH_CMSIS           0
+#define LOWPOWER_CMSIS        0
 ```
 
 `main.c` içindeki başlatma ve döngü kodları bu makrolara göre koşullu derleme (`#if`) ile aktif hale gelir. Clock modülü her zaman dahildir.
 
 > ⚠️ DMA modülü UART ve ADC modüllerine bağımlıdır. `DMA_CMSIS` aktifken `ADC_CMSIS` ve `UART_CMSIS` de `1` yapılmalıdır.
+
+> ⚠️ Low Power modülünde Sleep/Stop testleri için EXTI0 uyandırma kaynağı gerekir; `GPIO_Interrupt_CMSIS` de `1` yapılmalıdır.
 
 ## 📌 Pin Haritası
 
@@ -102,6 +106,7 @@ Tüm modüller `HeaderForAll.h` içinden merkezi olarak yönetilir. Kullanmak is
 | SPI MISO | PA6 | SPI1 Master In Slave Out (AF5) |
 | SPI MOSI | PA7 | SPI1 Master Out Slave In (AF5) |
 | RTC Timestamp | PC13 | RTC_TAMP1 / RTC_TS — timestamp tetikleme pini |
+| WKUP | PA0 | Standby'dan uyandırma pini (user button) |
 
 ## ⏱️ Saat Konfigürasyonu
 
@@ -192,6 +197,36 @@ RTC register'ları BCD (Binary Coded Decimal) formatında çalışır. Fonksiyon
 
 > ⚠️ PSIZE = 32-bit (VDD = 3.3V) seçilmiştir. Farklı voltajda çalışıyorsanız PSIZE değerini güncelleyin.
 
+## 🔋 Low Power Modülü — Detaylar
+
+### Güç Modları Karşılaştırması
+
+| Mod | CPU | Clock'lar | SRAM | Uyandırma | Tipik Akım |
+|-----|-----|-----------|------|-----------|------------|
+| **Sleep** | Durur | Çevre birimleri çalışır | Korunur | Herhangi bir interrupt | ~mA |
+| **Stop** | Durur | Hepsi durur (LSI/LSE hariç) | Korunur | Yalnızca EXTI line | ~µA |
+| **Standby** | Kapalı | Hepsi kapalı (backup domain hariç) | **Silinir** | WKUP pini, RTC alarm, IWDG | ~2 µA |
+
+### Fonksiyonlar
+- `LowPower_EnterSleep()` — SLEEPDEEP=0 + `__WFI()`. En hızlı uyanma; herhangi bir interrupt uyandırır.
+- `LowPower_EnterStop()` — PDDS=0, LPDS=1 + `__WFI()`. Uyanma sonrası otomatik `Clock_Init()` çağrılır (HSI→168 MHz restore).
+- `LowPower_EnterStandby()` — PDDS=1, WUF temizleme + `__WFI()`. Uyanma reset gibi davranır, `main()` baştan başlar.
+- `LowPower_WokeFromStandby()` — `PWR_CSR_SBF` bayrağı ile standby uyanması vs normal reset ayırt edilir.
+- `LowPower_ConfigWakeupPin()` — PA0'ı WKUP pini olarak etkinleştirir (EWUP biti).
+
+### Kritik Uyarılar
+> ⚠️ **Stop modunda** TIM/UART gibi normal interrupt'lar uyandıramaz (clock'ları durmuştur); yalnızca **EXTI line** kaynakları (buton, RTC alarm) uyandırır. Uyandırma kaynağı yapılandırılmadan Stop'a girilirse yalnızca reset ile çıkılabilir.
+
+> ⚠️ **Stop'tan uyanınca** sistem HSI (16 MHz) ile çalışır; HSE + PLL yeniden başlatılmalıdır. `LowPower_EnterStop()` bunu otomatik yapar.
+
+> ⚠️ **Standby'dan uyanma** reset gibi davranır: SRAM ve tüm değişkenler silinir. Kalıcı veri backup register (RTC->BKPxR) veya Flash'ta saklanmalıdır.
+
+> ⚠️ **Standby'a girmeden önce** WUF bayrağı temizlenmelidir (CWUF); aksi halde MCU anında geri uyanır.
+
+> ⚠️ **HAL SysTick uyarısı:** HAL_Init() SysTick'i 1 ms interrupt'a ayarlar; Sleep modunda `__WFI()` en fazla 1 ms uyur. Uzun uyku için SysTick geçici durdurulmalıdır.
+
+> ⚠️ `EWUP` set edildikten sonra PA0 normal GPIO olarak kullanılamaz; pin WKUP fonksiyonuna tahsis edilir.
+
 ## ⚠️ Önemli Notlar
 
 - Bu örnekler **eğitim amaçlıdır** ve ticari projelerde kullanılmadan önce test edilmelidir
@@ -204,6 +239,7 @@ RTC register'ları BCD (Binary Coded Decimal) formatında çalışır. Fonksiyon
 - DMA modülü UART ve ADC modüllerine bağımlıdır; birlikte aktif edilmelidir
 - WWDG_Refresh() çağrılırken sayaç ve WDGA biti **tek yazma işleminde** birlikte yazılmalıdır; iki adımlı yazım T6 bitinin anlık 0 olmasına ve anında resete yol açar
 - RTC modülü backup domain'de çalışır; `PWR_CR_DBP` biti set edilmeden RTC register'larına yazılamaz
+- Low Power Stop/Standby modlarında debugger bağlantısı kopabilir; `DBGMCU->CR` içindeki `DBG_STOP`/`DBG_STANDBY` bitleri debug sırasında bağlantıyı korur
 
 ## 📚 Faydalı Kaynaklar
 

@@ -18,7 +18,8 @@
 #define DMA_CMSIS             0 // Bağımlılıklar: ADC_CMSIS, UART_CMSIS
 #define WATCHDOG_CMSIS		  0
 #define RTC_CMSIS             0
-#define FLASH_CMSIS           1
+#define FLASH_CMSIS           0
+#define LOW_POWER_CMSIS		  1
 
 
 /*
@@ -80,6 +81,10 @@
 
 #if FLASH_CMSIS
   #include <Flash_CMSIS.h>
+#endif
+
+#if LOW_POWER_CMSIS
+#include <LowPower_CMSIS.h>
 #endif
 
 #endif /* HEADERFORALL_H */

@@ -241,6 +241,38 @@ int main(void)
     // 3. Veriyi geri oku ve doğrula
     Flash_ReadBuffer(FLASH_SECTOR6_ADDR, read_data, 4);
 #endif
+
+#if LOW_POWER_CMSIS
+    // ===== Standby'dan uyanma kontrolü (main başında) =====
+     if(LowPower_WokeFromStandby()){
+         // Standby'dan uyanıldı — LED yak, log tut vb.
+     }
+
+     // PD12 LED init (görsel doğrulama için)
+     RCC->AHB1ENR |= RCC_AHB1ENR_GPIODEN;
+     (void)RCC->AHB1ENR;
+     GPIOD->MODER  &= ~(3 << (12 * 2));
+     GPIOD->MODER  |=  (1 << (12 * 2));
+     GPIOD->BSRR    =  (1 << 12);              // LED aç — sistem çalışıyor göstergesi
+
+     // ===== Örnek 1: Sleep Mode =====
+     // EXTI0 (PA0 buton) yapılandırılmış olmalı (GPIO_Interrupt_CMSIS)
+     // GPIO_Interrupt_Init();
+     // Exti0_Init();
+     // LowPower_EnterSleep();                 // Butona basınca uyanır
+
+     // ===== Örnek 2: Stop Mode =====
+     // GPIO_Interrupt_Init();
+     // Exti0_Init();
+     // GPIOD->BSRR = (1 << (12 + 16));        // LED kapat — uyumaya giriyor
+     // LowPower_EnterStop();                  // Butona basınca uyanır
+     // GPIOD->BSRR = (1 << 12);               // LED aç — uyandı (clock restore edildi)
+
+     // ===== Örnek 3: Standby Mode =====
+     // LowPower_ConfigWakeupPin();            // PA0 WKUP aktif
+     // HAL_Delay(3000);                       // 3 sn bekle (gözlem için)
+     // LowPower_EnterStandby();               // Butona basınca RESET gibi uyanır
+#endif
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -367,6 +399,10 @@ int main(void)
 
 #if FLASH_CMSIS
     // Flash işlemleri tamamlandı, ana döngüde ek işlem gerekmez
+#endif
+
+#if LOW_POWER_CMSIS
+    // Low power işlemleri tamamlandı, ana döngüde ek işlem gerekmez
 #endif
   }
   /* USER CODE END 3 */
